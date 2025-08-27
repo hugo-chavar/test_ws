@@ -19,6 +19,7 @@ class OrderService {
 
       if (error) return;
 
+      // only for debugging
       joinToHeartbeatChannel();
 
       joinToOrderStatusChannel(orderId);
