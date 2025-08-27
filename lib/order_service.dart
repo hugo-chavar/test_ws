@@ -15,61 +15,77 @@ class OrderService {
     _updatesController.add({"info": "Connecting to order:$orderId ..."});
 
     try {
-      try {
-        _socket = PhoenixSocket(
-          "wss://www.incubator-backend.doyo.ch/new_ws/websocket",
-          socketOptions: PhoenixSocketOptions(
-            heartbeat: Duration(minutes: 2, seconds: 30),
-            heartbeatTimeout: Duration(seconds: 10),
-          ),
-        );
-        await _socket!.connect();
-      } catch (e) {
-        _updatesController.add({"error": "Socket connection failed: $e"});
-        return;
-      }
+      bool error = await connectToSocket();
 
-      _phoenixChannel = _socket!.addChannel(topic: "phoenix");
+      if (error) return;
 
-      _phoenixChannel!.messages.listen((event) {
-        print("DEBUG: $event");
+      joinToHeartbeatChannel();
 
-        // Heartbeat replies are always on topic "phoenix"
-        // and have a payload with {status: ok, response: {}}
-        if (event.topic == "phoenix" &&
-            event.payload["status"] == "ok" &&
-            (event.payload["response"] as Map).isEmpty) {
-          String msg = "❤️ Heartbeat received at ${DateTime.now()}";
-          print(msg);
-          _updatesController.add({"info": msg});
-        }
-      });
-
-      _channel = _socket!.addChannel(topic: "order:$orderId");
-
-      final joinPush = _channel!.join();
-
-      joinPush.future.then((reply) {
-        _updatesController.add({"info": "Joined channel: ${reply.response}"});
-      }).catchError((err) {
-        _updatesController.add({"error": "Join error: $err"});
-      });
-
-      _channel!.messages.listen(
-        (event) {
-          _updatesController.add({
-            "event": event.event.value,
-            "payload": event.payload,
-          });
-        },
-        onError: (err) {
-          _updatesController.add({"error": "Channel listen error: $err"});
-        },
-      );
+      joinToOrderStatusChannel(orderId);
 
     } catch (e) {
       _updatesController.add({"error": "Connection failed: $e"});
     }
+  }
+
+  void joinToOrderStatusChannel(String orderId) {
+    _channel = _socket!.addChannel(topic: "order:$orderId");
+    
+    final joinPush = _channel!.join();
+    
+    joinPush.future.then((reply) {
+      _updatesController.add({"info": "Joined channel: ${reply.response}"});
+    }).catchError((err) {
+      _updatesController.add({"error": "Join error: $err"});
+    });
+    
+    _channel!.messages.listen(
+      (event) {
+        _updatesController.add({
+          "event": event.event.value,
+          "payload": event.payload,
+        });
+      },
+      onError: (err) {
+        _updatesController.add({"error": "Channel listen error: $err"});
+      },
+    );
+  }
+
+  void joinToHeartbeatChannel() {
+    _phoenixChannel = _socket!.addChannel(topic: "phoenix");
+    
+    _phoenixChannel!.messages.listen((event) {
+      print("DEBUG: $event");
+    
+      // Heartbeat replies are always on topic "phoenix"
+      // and have a payload with {status: ok, response: {}}
+      if (event.topic == "phoenix" &&
+          event.payload["status"] == "ok" &&
+          (event.payload["response"] as Map).isEmpty) {
+        String msg = "❤️ Heartbeat received at ${DateTime.now()}";
+        print(msg);
+        _updatesController.add({"info": msg});
+      }
+    });
+  }
+
+  Future<bool> connectToSocket() async {
+    bool error = false;
+    try {
+      _socket = PhoenixSocket(
+        "wss://www.incubator-backend.doyo.ch/new_ws/websocket",
+        socketOptions: PhoenixSocketOptions(
+          heartbeat: Duration(minutes: 2, seconds: 30),
+          heartbeatTimeout: Duration(seconds: 10),
+        ),
+      );
+      await _socket!.connect();
+    } catch (e) {
+      _updatesController.add({"error": "Socket connection failed: $e"});
+      error = true;
+    }
+    return error;
   }
 
   void disconnect() {
