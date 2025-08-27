@@ -4,6 +4,7 @@ import 'package:phoenix_socket/phoenix_socket.dart';
 class OrderService {
   PhoenixSocket? _socket;
   PhoenixChannel? _channel;
+  PhoenixChannel? _phoenixChannel;
 
   final _updatesController = StreamController<Map<String, dynamic>>.broadcast();
   Stream<Map<String, dynamic>> get updates => _updatesController.stream;
@@ -18,7 +19,7 @@ class OrderService {
         _socket = PhoenixSocket(
           "wss://www.incubator-backend.doyo.ch/new_ws/websocket",
           socketOptions: PhoenixSocketOptions(
-            heartbeat: Duration(seconds: 30),
+            heartbeat: Duration(minutes: 2, seconds: 30),
             heartbeatTimeout: Duration(seconds: 10),
           ),
         );
@@ -27,6 +28,23 @@ class OrderService {
         _updatesController.add({"error": "Socket connection failed: $e"});
         return;
       }
+
+      _phoenixChannel = _socket!.addChannel(topic: "phoenix");
+
+      _phoenixChannel!.messages.listen((event) {
+        print("DEBUG: $event");
+
+        // Heartbeat replies are always on topic "phoenix"
+        // and have a payload with {status: ok, response: {}}
+        if (event.topic == "phoenix" &&
+            event.payload["status"] == "ok" &&
+            (event.payload["response"] as Map).isEmpty) {
+          String msg = "❤️ Heartbeat received at ${DateTime.now()}";
+          print(msg);
+          _updatesController.add({"info": msg});
+        }
+      });
+
       _channel = _socket!.addChannel(topic: "order:$orderId");
 
       final joinPush = _channel!.join();
