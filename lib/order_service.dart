@@ -15,7 +15,13 @@ class OrderService {
 
     try {
       try {
-        _socket = PhoenixSocket("wss://www.incubator-backend.doyo.ch/new_ws/websocket");
+        _socket = PhoenixSocket(
+          "wss://www.incubator-backend.doyo.ch/new_ws/websocket",
+          socketOptions: PhoenixSocketOptions(
+            heartbeat: Duration(seconds: 30),
+            heartbeatTimeout: Duration(seconds: 10),
+          ),
+        );
         await _socket!.connect();
       } catch (e) {
         _updatesController.add({"error": "Socket connection failed: $e"});
@@ -46,6 +52,12 @@ class OrderService {
     } catch (e) {
       _updatesController.add({"error": "Connection failed: $e"});
     }
+  }
+
+  void disconnect() {
+    _channel?.leave();
+    _socket?.dispose();
+    _updatesController.add({"info": "Disconnected from server"});
   }
 
   void dispose() {

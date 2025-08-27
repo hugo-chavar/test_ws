@@ -69,6 +69,10 @@ class _MyAppState extends State<MyApp> {
                     onPressed: _connectToOrder,
                     child: const Text("Connect"),
                   ),
+                  ElevatedButton(
+                    onPressed: () => _orderService.disconnect(),
+                    child: Text("Disconnect"),
+                  ),
                 ],
               ),
             ),
