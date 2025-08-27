@@ -14,8 +14,13 @@ class OrderService {
     _updatesController.add({"info": "Connecting to order:$orderId ..."});
 
     try {
-      _socket = PhoenixSocket("wss://www.incubator-backend.doyo.ch/new_ws/websocket");
-      await _socket!.connect();
+      try {
+        _socket = PhoenixSocket("wss://www.incubator-backend.doyo.ch/new_ws/websocket");
+        await _socket!.connect();
+      } catch (e) {
+        _updatesController.add({"error": "Socket connection failed: $e"});
+        return;
+      }
       _channel = _socket!.addChannel(topic: "order:$orderId");
 
       final joinPush = _channel!.join();
@@ -26,12 +31,18 @@ class OrderService {
         _updatesController.add({"error": "Join error: $err"});
       });
 
-      _channel!.messages.listen((event) {
-        _updatesController.add({
-          "event": event.event.value,
-          "payload": event.payload,
-        });
-      });
+      _channel!.messages.listen(
+        (event) {
+          _updatesController.add({
+            "event": event.event.value,
+            "payload": event.payload,
+          });
+        },
+        onError: (err) {
+          _updatesController.add({"error": "Channel listen error: $err"});
+        },
+      );
+
     } catch (e) {
       _updatesController.add({"error": "Connection failed: $e"});
     }
