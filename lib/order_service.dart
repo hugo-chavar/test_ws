@@ -2,38 +2,43 @@ import 'dart:async';
 import 'package:phoenix_socket/phoenix_socket.dart';
 
 class OrderService {
-  late PhoenixSocket _socket;
-  late PhoenixChannel _channel;
+  PhoenixSocket? _socket;
+  PhoenixChannel? _channel;
 
   final _updatesController = StreamController<Map<String, dynamic>>.broadcast();
   Stream<Map<String, dynamic>> get updates => _updatesController.stream;
 
   Future<void> connect(String orderId) async {
-    // Connect to your backend WebSocket
-    _socket = PhoenixSocket("wss://www.incubator-backend.doyo.ch/new_ws/websocket");
+    // Dispose any previous socket
+    _socket?.dispose();
+    _updatesController.add({"info": "Connecting to order:$orderId ..."});
 
-    await _socket.connect();
+    try {
+      _socket = PhoenixSocket("wss://www.incubator-backend.doyo.ch/new_ws/websocket");
+      await _socket!.connect();
+      _channel = _socket!.addChannel(topic: "order:$orderId");
 
-    // Join specific order topic
-    _channel = _socket.addChannel(topic: "order:$orderId");
+      final joinPush = _channel!.join();
 
-    final joinPush = _channel.join();
+      joinPush.future.then((reply) {
+        _updatesController.add({"info": "Joined channel: ${reply.response}"});
+      }).catchError((err) {
+        _updatesController.add({"error": "Join error: $err"});
+      });
 
-    joinPush.future.then((reply) {
-      print("Joined channel successfully: ${reply.response}");
-    }).catchError((err) {
-      print("Failed to join channel: $err");
-    });
-
-    // Listen for updates
-    _channel.messages.listen((event) {
-      print("Received event: ${event.event}, payload: ${event.payload}");
-      _updatesController.add(event.payload);
-    });
+      _channel!.messages.listen((event) {
+        _updatesController.add({
+          "event": event.event.value,
+          "payload": event.payload,
+        });
+      });
+    } catch (e) {
+      _updatesController.add({"error": "Connection failed: $e"});
+    }
   }
 
   void dispose() {
     _updatesController.close();
-    _socket.dispose();
+    _socket?.dispose();
   }
 }
