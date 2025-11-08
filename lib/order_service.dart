@@ -30,7 +30,7 @@ class OrderService {
   }
 
   void joinToOrderStatusChannel(String orderId) {
-    _channel = _socket!.addChannel(topic: "order:$orderId");
+    _channel = _socket!.addChannel(topic: "order:31:$orderId");
     
     final joinPush = _channel!.join();
     
@@ -100,3 +100,6 @@ class OrderService {
     _socket?.dispose();
   }
 }
+
+
+//flutter run -d chrome  --web-hostname localhost --web-port 62630
