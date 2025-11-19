@@ -1,13 +1,14 @@
 import 'dart:async';
 import 'package:phoenix_socket/phoenix_socket.dart';
+import 'storage_service.dart';
 
 class OrderService {
   PhoenixSocket? _socket;
   PhoenixChannel? _channel;
-  PhoenixChannel? _phoenixChannel;
 
   final _updatesController = StreamController<Map<String, dynamic>>.broadcast();
   Stream<Map<String, dynamic>> get updates => _updatesController.stream;
+  final storage = StorageService();
 
   Future<void> connect(String orderId) async {
     // Dispose any previous socket
@@ -19,8 +20,6 @@ class OrderService {
 
       if (error) return;
 
-      // only for debugging
-      joinToHeartbeatChannel();
 
       joinToOrderStatusChannel(orderId);
 
@@ -53,27 +52,16 @@ class OrderService {
     );
   }
 
-  void joinToHeartbeatChannel() {
-    _phoenixChannel = _socket!.addChannel(topic: "phoenix");
-    
-    _phoenixChannel!.messages.listen((event) {
-    
-      // Heartbeat replies are always on topic "phoenix"
-      // and have a payload with {status: ok, response: {}}
-      if (event.topic == "phoenix" &&
-          event.payload["status"] == "ok" &&
-          (event.payload["response"] as Map).isEmpty) {
-        String msg = "❤️ Heartbeat received at ${DateTime.now()}";
-        _updatesController.add({"info": msg});
-      }
-    });
-  }
 
   Future<bool> connectToSocket() async {
     bool error = false;
     try {
+      String? url = await storage.readString('ws_url');
+      if (url == null) {
+        throw "Can not find URL";
+      }
       _socket = PhoenixSocket(
-        "wss://www.incubator-backend.doyo.ch/new_ws/websocket",
+        url,
         socketOptions: PhoenixSocketOptions(
           heartbeat: Duration(minutes: 2, seconds: 30),
           heartbeatTimeout: Duration(seconds: 10),
