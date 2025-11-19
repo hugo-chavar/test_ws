@@ -4,62 +4,26 @@ import 'storage_service.dart';
 
 class OrderService {
   PhoenixSocket? _socket;
-  PhoenixChannel? _channel;
-
+  final Map<String, PhoenixChannel> _channels = {};
+  
   final _updatesController = StreamController<Map<String, dynamic>>.broadcast();
   Stream<Map<String, dynamic>> get updates => _updatesController.stream;
   final storage = StorageService();
 
-  Future<void> connect(String orderId) async {
-    // Dispose any previous socket
-    _socket?.dispose();
-    _updatesController.add({"info": "Connecting to order:31:$orderId ..."});
-
-    try {
-      bool error = await connectToSocket();
-
-      if (error) return;
-
-
-      joinToOrderStatusChannel(orderId);
-
-    } catch (e) {
-      _updatesController.add({"error": "Connection failed: $e"});
+  Future<void> connectToSocket() async {
+    // Only connect if socket doesn't exist or is disconnected
+    if (_socket != null && _socket!.isConnected) {
+      return;
     }
-  }
 
-  void joinToOrderStatusChannel(String orderId) {
-    _channel = _socket!.addChannel(topic: "order:31:$orderId");
-    
-    final joinPush = _channel!.join();
-    
-    joinPush.future.then((reply) {
-      _updatesController.add({"info": "Joined channel: ${reply.response}"});
-    }).catchError((err) {
-      _updatesController.add({"error": "Join error: $err"});
-    });
-    
-    _channel!.messages.listen(
-      (event) {
-        _updatesController.add({
-          "event": event.event.value,
-          "payload": event.payload,
-        });
-      },
-      onError: (err) {
-        _updatesController.add({"error": "Channel listen error: $err"});
-      },
-    );
-  }
-
-
-  Future<bool> connectToSocket() async {
-    bool error = false;
     try {
       String? url = await storage.readString('ws_url');
       if (url == null) {
-        throw "Can not find URL";
+        throw "Cannot find URL";
       }
+      
+      _socket?.dispose(); // Clean up previous socket if exists
+      
       _socket = PhoenixSocket(
         url,
         socketOptions: PhoenixSocketOptions(
@@ -67,25 +31,126 @@ class OrderService {
           heartbeatTimeout: Duration(seconds: 10),
         ),
       );
+
+      // Listen to socket connection events
+      _socket!.updates.listen((message) {
+        _updatesController.add({
+          "type": "socket", // differentiate from other sources
+          "event": message.event.value,
+          "payload": message.payload,
+        });
+      });
+
       await _socket!.connect();
+      _updatesController.add({"info": "Socket connected successfully"});
+      
     } catch (e) {
       _updatesController.add({"error": "Socket connection failed: $e"});
-      error = true;
+      rethrow;
     }
-    return error;
+  }
+
+  Future<void> joinChannel(String topic, {Map<String, dynamic>? params}) async {
+    if (_socket == null || !_socket!.isConnected) {
+      await connectToSocket();
+    }
+
+    // Check if already joined to this channel
+    if (_channels.containsKey(topic)) {
+      _updatesController.add({"info": "Already joined to channel: $topic"});
+      return;
+    }
+
+    try {
+      final channel = _socket!.addChannel(topic: topic, parameters: params);
+      _channels[topic] = channel;
+
+      final joinPush = channel.join();
+      
+      final reply = await joinPush.future;
+      _updatesController.add({
+        "info": "Joined channel: $topic",
+        "status": reply.status,
+        "response": reply.response
+      });
+
+      // Listen to channel messages
+      channel.messages.listen((event) {
+        _updatesController.add({
+          "type": "channel",
+          "topic": topic,
+          "event": event.event.value,
+          "payload": event.payload,
+        });
+      }, onError: (err) {
+        _updatesController.add({
+          "error": "Channel $topic listen error: $err",
+          "topic": topic
+        });
+      });
+
+    } catch (e) {
+      _channels.remove(topic);
+      _updatesController.add({
+        "error": "Failed to join channel $topic: $e",
+        "topic": topic
+      });
+      rethrow;
+    }
+  }
+
+  Future<void> leaveChannel(String topic) async {
+    final channel = _channels[topic];
+    if (channel != null) {
+      try {
+        channel.leave();
+        _channels.remove(topic);
+        _updatesController.add({"info": "Left channel: $topic"});
+      } catch (e) {
+        _updatesController.add({
+          "error": "Failed to leave channel $topic: $e",
+          "topic": topic
+        });
+      }
+    }
+  }
+
+  // Convenience methods for specific channels
+  Future<void> joinOrderStatusChannel(String orderId) {
+    return joinChannel("order:31:$orderId");
+  }
+
+  Future<void> joinUserChannel(String userId) {
+    return joinChannel("user:$userId", params: {"user_id": userId});
+  }
+
+  Future<void> joinNotificationsChannel() {
+    return joinChannel("notifications:global");
+  }
+
+  // Check if connected to a specific channel
+  bool isJoinedToChannel(String topic) {
+    return _channels.containsKey(topic);
+  }
+
+  // Get all active channels
+  List<String> getActiveChannels() {
+    return _channels.keys.toList();
   }
 
   void disconnect() {
-    _channel?.leave();
+    // Leave all channels
+    for (final channel in _channels.values) {
+      channel.leave();
+    }
+    _channels.clear();
+    
     _socket?.dispose();
     _updatesController.add({"info": "Disconnected from server"});
   }
 
   void dispose() {
+    disconnect();
     _updatesController.close();
-    _socket?.dispose();
   }
 }
-
-
-//flutter run -d chrome  --web-hostname localhost --web-port 62630
