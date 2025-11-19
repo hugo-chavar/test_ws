@@ -12,7 +12,7 @@ class OrderService {
   Future<void> connect(String orderId) async {
     // Dispose any previous socket
     _socket?.dispose();
-    _updatesController.add({"info": "Connecting to order:$orderId ..."});
+    _updatesController.add({"info": "Connecting to order:31:$orderId ..."});
 
     try {
       bool error = await connectToSocket();
@@ -57,7 +57,6 @@ class OrderService {
     _phoenixChannel = _socket!.addChannel(topic: "phoenix");
     
     _phoenixChannel!.messages.listen((event) {
-      print("DEBUG: $event");
     
       // Heartbeat replies are always on topic "phoenix"
       // and have a payload with {status: ok, response: {}}
@@ -65,7 +64,6 @@ class OrderService {
           event.payload["status"] == "ok" &&
           (event.payload["response"] as Map).isEmpty) {
         String msg = "❤️ Heartbeat received at ${DateTime.now()}";
-        print(msg);
         _updatesController.add({"info": msg});
       }
     });

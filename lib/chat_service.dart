@@ -13,7 +13,7 @@ class ChatService {
 
     await _socket.connect();
 
-    _channel = _socket.addChannel(topic: "order:68af1b7dfc1527bdc30ff112");
+    _channel = _socket.addChannel(topic: "order:31:68af1b7dfc1527bdc30ff112");
     await _channel.join().future;
 
     // Listen for events from the channel
