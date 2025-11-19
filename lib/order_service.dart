@@ -32,12 +32,12 @@ class OrderService {
         ),
       );
 
-      // Listen to socket connection events
-      _socket!.updates.listen((message) {
+      // Listen to socket connection state changes instead of messages
+      _socket!.connectionStream.listen((state) {
         _updatesController.add({
           "type": "socket", // differentiate from other sources
-          "event": message.event.value,
-          "payload": message.payload,
+          "event": "connection_state",
+          "state": state.toString(),
         });
       });
 
