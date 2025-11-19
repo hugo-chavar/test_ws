@@ -32,18 +32,27 @@ class OrderService {
         ),
       );
 
-      // Listen to socket connection state changes instead of messages
-      _socket!.connectionStream.listen((state) {
+      // Listen to socket OPEN events using the correct 'openStream'
+      _socket!.openStream.listen((_) {
         _updatesController.add({
-          "type": "socket", // differentiate from other sources
+          "type": "socket",
           "event": "connection_state",
-          "state": state.toString(),
+          "state": "opened", // You can use a more descriptive state
+          "info": "Socket connected successfully"
+        });
+      });
+
+      // You might also want to listen for close events
+      _socket!.closeStream.listen((event) {
+        _updatesController.add({
+          "type": "socket",
+          "event": "connection_state",
+          "state": "closed",
+          "info": "Socket connection closed"
         });
       });
 
       await _socket!.connect();
-      _updatesController.add({"info": "Socket connected successfully"});
-      
     } catch (e) {
       _updatesController.add({"error": "Socket connection failed: $e"});
       rethrow;
