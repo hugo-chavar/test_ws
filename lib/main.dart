@@ -16,11 +16,12 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   final OrderService _orderService = OrderService();
   final List<String> _messages = [];
-  final TextEditingController _controller = TextEditingController();
+  final TextEditingController _orderIdController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    
     _orderService.updates.listen((payload) {
       setState(() {
         // Pretty print JSON
@@ -31,10 +32,10 @@ class _MyAppState extends State<MyApp> {
   }
 
   void _connectToOrder() {
-    final orderId = _controller.text.trim();
+    final orderId = _orderIdController.text.trim();
     if (orderId.isNotEmpty) {
       _messages.clear();
-      _orderService.connect(orderId);
+      _orderService.joinOrderStatusChannel(orderId);
     }
   }
 
@@ -57,7 +58,7 @@ class _MyAppState extends State<MyApp> {
                 children: [
                   Expanded(
                     child: TextField(
-                      controller: _controller,
+                      controller: _orderIdController,
                       decoration: const InputDecoration(
                         labelText: "Enter Order ID",
                         border: OutlineInputBorder(),
