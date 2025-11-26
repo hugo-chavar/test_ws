@@ -16,7 +16,7 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   final OrderService _orderService = OrderService();
   final List<String> _messages = [];
-  final TextEditingController _orderIdController = TextEditingController();
+  final TextEditingController _topicController = TextEditingController();
 
   @override
   void initState() {
@@ -31,11 +31,19 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
-  void _connectToOrder() {
-    final orderId = _orderIdController.text.trim();
-    if (orderId.isNotEmpty) {
-      _messages.clear();
-      _orderService.joinOrderStatusChannel(orderId);
+  void _connectToChannel() {
+    final topic = _topicController.text.trim();
+    if (topic.isNotEmpty) {
+      // _messages.clear();
+      _orderService.joinChannel(topic);
+    }
+  }
+
+  void _leaveChannel() {
+    final topic = _topicController.text.trim();
+    if (topic.isNotEmpty) {
+      // _messages.clear();
+      _orderService.leaveChannel(topic);
     }
   }
 
@@ -49,7 +57,7 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       home: Scaffold(
-        appBar: AppBar(title: const Text("Order Updates")),
+        appBar: AppBar(title: const Text("Channel Updates")),
         body: Column(
           children: [
             Padding(
@@ -58,17 +66,21 @@ class _MyAppState extends State<MyApp> {
                 children: [
                   Expanded(
                     child: TextField(
-                      controller: _orderIdController,
+                      controller: _topicController,
                       decoration: const InputDecoration(
-                        labelText: "Enter Order ID",
+                        labelText: "Enter topic",
                         border: OutlineInputBorder(),
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   ElevatedButton(
-                    onPressed: _connectToOrder,
+                    onPressed: _connectToChannel,
                     child: const Text("Connect"),
+                  ),
+                  ElevatedButton(
+                    onPressed: _leaveChannel,
+                    child: const Text("Leave"),
                   ),
                   ElevatedButton(
                     onPressed: () => _orderService.disconnect(),
